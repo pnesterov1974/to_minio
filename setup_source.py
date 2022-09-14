@@ -55,87 +55,6 @@ class SetupSource:
                raise ValueError(
                     f'для {setup_global_table_id=} отсутствуют записи в таблице [DB_DWH].[dbo].[Setup_Tables_Global]'
                 )
-
-    @staticmethod
-    def __get_columns_info(source_global_table_id: int, src_column_timestamp=None):
-        _sql = f'''
-            SELECT [id],
-                   [dst_table_id],
-                   [source_id],
-                   CAST([dst_column_name] AS NVARCHAR(100)) AS [dst_column_name],
-                   CAST([src_column_name] AS NVARCHAR(100)) AS [src_column_name],
-                   [is_pk],
-                   [src_column_type],
-                   [deleted_checking_filter],
-                   [refresh_filter]
-            FROM [DB_DWH].[dbo].[Setup_Columns_Mapping]
-            WHERE [dst_table_id] = {source_global_table_id}
-                  AND NOT [src_column_type] IN ('image')
-        '''
-        with SetupSource.dwh_engine.connect() as conn:
-            res = conn.execute(text(_sql))
-            dc = dict()
-            if res:
-                for r in res:
-                    rec = dict(r._mapping)
-                    k = rec['src_column_name']
-                    v = {'dst_column_name': rec['dst_column_name'],
-                         'is_pk': rec['is_pk'],
-                         'src_column_type': rec['src_column_type'],
-                         'deleted_checking_filter': rec['deleted_checking_filter'],
-                         'refresh_filter': rec['refresh_filter']
-                        }
-                    dc[k] = v
-                if src_column_timestamp:
-                    k = src_column_timestamp
-                    v = {'dst_column_name': src_column_timestamp,
-                        'is_pk': None,
-                        'src_column_type': 'timestamp',
-                        'deleted_checking_filter': None,
-                        'refresh_filter': None
-                        }
-                    dc[k] = v
-                return dc
-            else:
-                raise ValueError('Нет колонок')
-
-    @staticmethod
-    def __get_columns_info_from_sysobjects(source_name: str):
-        source_table_name = source_name.split('.')[-1].replace('[', '').replace(']', '')
-        _sql = f'''
-        SELECT
-            so.[name]  AS TableName,
-            c.[name]   AS ColumnName,
-            c.[colid]  AS ColumnID,
-            c.[length] AS ColumnLength,
-            c.[prec]   AS ColumnPrecision,
-            c.[scale]  AS ColumnScale,
-            t.[name]   AS TypeName
-        FROM dbo.syscolumns c
-        INNER JOIN dbo.systypes t
-            ON (c.[xtype] = t.[xtype]) 
-               AND (c.[usertype] = t.[usertype])
-        INNER JOIN dbo.sysobjects so
-            ON so.[id] = c.[id] 
-        WHERE so.[name] = '{source_table_name}'
-        ORDER BY c.[colid]
-        '''
-        with SetupSource.dwh_engine.connect() as conn:
-            res = conn.execute(text(_sql))
-            dc = dict()
-            if res:
-                for r in res:
-                    rec = dict(r._mapping)
-                    k = rec['ColumnName']
-                    v = {
-                        'dst_column_name': k,
-                        'is_pk': None,
-                        'src_column_type': rec['TypeName'],
-                        'deleted_checking_filter': None,
-                        'refresh_filter': None
-                    }
-                    dc[k] = v
-            return dc
     
     @staticmethod
     def __get_values_from_setup_source(setup_source_id: int):
@@ -172,14 +91,6 @@ class SetupSource:
                 )
 
     @staticmethod
-    def check_where_str(instr: str):
-        s1 = instr.strip()
-        if s1.upper().find('WHERE') != 0:
-            return ' '.join(['WHERE', s1])
-        else:
-            return s1
-
-    @staticmethod
     def square_fullname(fullname: str):
         s = fullname.split('.')
         return '.'.join(list(map(square_oname, s)))
@@ -195,9 +106,8 @@ class SetupSource:
         self.__source_id = None
         self.__source_database = None
         self.__source_sql = None
-        self.__columns_info = None
-        self.__columns_names_list_for_select_stmt = None
-        self.__sql_where_str = None
+        #self.__columns_info = None
+        #self.__columns_names_list_for_select_stmt = None
         self.__use_setup_tables = None
         self.__src_column_timestamp = None
         self.__job_queue_runpack_id = None
@@ -215,9 +125,6 @@ class SetupSource:
 
         assert self.__use_setup_tables is not None, \
         'Неправильная комбинация параметров. Должен быть или setup_table_id или oname'
-        
-        if 'sql_where_str' in kwargs:
-            self.__sql_where_str = SetupSource.check_where_str(kwargs['sql_where_str'])
         
     def __get_source_table_info(self):
         try:
@@ -270,56 +177,13 @@ class SetupSource:
         return self.__source_sql
             
     def __get_source_sql(self):
-        s1 = 'SELECT'
-        s2 = ',\n'.join(self.columns_names_list_for_select_stmt)
-        s = ' '.join([s1, s2])
+        s1 = 'EXEC'
         if self.__use_setup_tables:
-            full_name = '.'.join(
-                list(map(square_oname,
-                        [self.__source_database,
-                         self.__source_schema, 
-                         self.__source_table_name
-                        ]
-                        )
-                    )
-                )
-            f = ' '.join(['FROM', full_name])
+            s2 = 'x'
         else:
-            f = ' '.join(['FROM', self.__oname])
-        w = self.__sql_where_str if self.__sql_where_str else 'WHERE 1=1'
-        return '\n'.join([s, f, w])
+            s2 = self.__oname 
+        return ' '.join([s1, s2])
        
-    @property
-    def columns_info(self):
-        if not self.__columns_info:
-            if self.__use_setup_tables:
-                self.__columns_info = SetupSource.__get_columns_info(
-                    source_global_table_id=self.__source_global_table_id,
-                    src_column_timestamp=self.__src_column_timestamp
-                )
-            else:
-                self.__columns_info = SetupSource.__get_columns_info_from_sysobjects(
-                    source_name=self.__oname
-                )
-            print('=== Source Columns Info ==')
-            pprint(self.__columns_info)
-        return self.__columns_info
-
-    @property
-    def columns_names_list_for_select_stmt(self):
-        if not self.__columns_names_list_for_select_stmt:
-            self.__columns_names_list_for_select_stmt = self.__get_columns_names_list_for_select_stmt()
-        return self.__columns_names_list_for_select_stmt
-
-    def __get_columns_names_list_for_select_stmt(self):
-        dc = self.columns_info
-        if len(dc) > 0:
-            return [square_oname(k) if v['src_column_type'] != 'varchar' 
-                    else f'CAST({square_oname(k)} AS NVARCHAR(MAX)) AS {square_oname(k)}'
-                    for k, v in dc.items()
-                ]
-        else:
-            pass #raise no columns exc
 
 # ---------------------------------------------------------------------------------------
 if __name__ == '__main__': pass

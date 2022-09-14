@@ -37,7 +37,8 @@ class Records:
             res = conn.execute(text(self.__sql))
             for row in res:
                 d = dict(row._mapping)
-                if self.__job_queue_runpack_id:
-                    d['RunPackID'] = self.__job_queue_runpack_id
-                d['SnapshotDT'] = Records.snapshot_dt
+                #print(d)
+                #if self.__job_queue_runpack_id:
+                #    d['RunPackID'] = self.__job_queue_runpack_id
+                #d['SnapshotDT'] = Records.snapshot_dt
                 yield d

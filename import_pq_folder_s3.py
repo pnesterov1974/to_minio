@@ -15,16 +15,12 @@ class ImportPqFolderS3:
     minio_secret_key = SECRET_KEY
     minio_dwh_bucket = DWH_BUCKET
 
-    def __init__(self, 
-        setup: SetupSource, lfs: LFS, pqschema: ImportPqSchema,
-        partition_fields: list
-        ):
+    def __init__(self, setup: SetupSource, lfs: LFS, partition_fields: list):
         self.__sql = setup.source_sql
         self.__job_queue_runpack_id = setup.job_queue_runpack_id
         self.__lfs_path = lfs.lfs_info['full_source_name']
         self.__lfs = lfs
         self.__partition_fields = partition_fields
-        self.__pqschema = pqschema
 
     def __call__(self):
         self.__do_import()
@@ -42,14 +38,15 @@ class ImportPqFolderS3:
             secret_key=ImportPqFolderS3.minio_secret_key,
             scheme="http",
             )
-
         import_is_ok = False
-        #records = Records(self.__source_sql)
         records = Records(sql=self.__sql, job_queue_runpack_id=self.__job_queue_runpack_id)
+        ips = ImportPqSchema()
         try:
             for i, r in enumerate(records, 1):
-                self.__pqschema.append_record_to_list(r)
-            t = self.__pqschema.make_table()
+                if i==1:
+                    ips.init_columns(r)
+                ips.append_record_to_list(r)
+            t = ips.make_table()
             
             #TODO Common_metadata from lfs
             pq.write_to_dataset(t, 

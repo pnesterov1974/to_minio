@@ -29,16 +29,12 @@ class ImportPqFolderLfs:
                 file_path=abs_source_path
             )
 
-    def __init__(self, 
-        setup: SetupSource, lfs: LFS, pqschema: ImportPqSchema,
-        partition_fields: list
-        ):
+    def __init__(self, setup: SetupSource, lfs: LFS, partition_fields: list):
         self.__sql = setup.source_sql
         self.__job_queue_runpack_id = setup.job_queue_runpack_id
         self.__lfs_path = lfs.lfs_info['full_source_name']
         self.__lfs = lfs
         self.__partition_fields = partition_fields
-        self.__pqschema = pqschema
 
     def __call__(self, copy_to_minio=True, delete_folder_after_copy=False):
         self.__do_import()
@@ -48,13 +44,15 @@ class ImportPqFolderLfs:
     def __do_import(self):
         print(f'Destination path: {self.__lfs_path}')
         import_is_ok = False
-        #records = Records(self.__source_sql)
         records = Records(sql=self.__sql, job_queue_runpack_id=self.__job_queue_runpack_id)
+        ips = ImportPqSchema()
         print(f'Старт считывания данных...')
         try:
             for i, r in enumerate(records, 1):
-                self.__pqschema.append_record_to_list(r)
-            t = self.__pqschema.make_table()
+                if i==1:
+                    ips.init_columns(r)
+                ips.append_record_to_list(r)
+            t = ips.make_table()
             _root_path = self.__lfs_path
             _common_metadata = self.__lfs_path + '/_common_metadata'
             pq.write_to_dataset(t, 

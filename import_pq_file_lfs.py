@@ -45,14 +45,9 @@ class ImportPqFileLfs:
         except:
             raise
 
-    def __init__(self, 
-        setup: SetupSource, lfs: LFS, pqschema: ImportPqSchema, 
-        big_file=False, 
-        ):
+    def __init__(self, setup: SetupSource, lfs: LFS, big_file=False):
         self.__sql = setup.source_sql
         self.__job_queue_runpack_id = setup.job_queue_runpack_id
-        #print(self.__job_queue_runpack_id)
-        self.__pqschema = pqschema
         self.__destination_info = lfs.lfs_info
         self.__big_file = big_file
 
@@ -63,28 +58,30 @@ class ImportPqFileLfs:
         pqw = None
         import_is_ok = False
         records = Records(sql=self.__sql, job_queue_runpack_id=self.__job_queue_runpack_id)
+        ips = ImportPqSchema()
         current_batch = 1
         print(f'Старт считывания данных...')
         try:
             for i, r in enumerate(records, 1):
+                if i==1:
+                    ips.init_columns(r)
                 if (i % ImportPqFileLfs.batch_record_count) == 0:
-                    t = self.__pqschema.make_table()
+                    t = ips.make_table()
                     if current_batch==1:
                         pqw = pq.ParquetWriter(lfs_dest_filepath, t.schema)
                     pqw.write_table(t)
                     #print(f'пачка {current_batch}, записей {i}, время создания пачки {dt_delta}')
                     print(f'пачка {current_batch}, записей {i}')
                     current_batch += 1
-                    self.__pqschema.clear_lists()
-                self.__pqschema.append_record_to_list(r)
+                    ips.clear_lists()
+                ips.append_record_to_list(r)
             
-            if not self.__pqschema.schema_is_clean():
-                t = self.__pqschema.make_table()
+            if not ips.schema_is_clean():
+                t = ips.make_table()
                 if current_batch==1:
                     pqw = pq.ParquetWriter(lfs_dest_filepath, t.schema)
                 pqw.write_table(t)
-                dt = datetime.now()
-                self.__pqschema.clear_lists()
+                ips.clear_lists()
                 #print(f'пачка {current_batch}, записей {i}, время создания пачки {dt_delta}')
                 print(f'пачка {current_batch}, записей {i}')
             import_is_ok = True
@@ -102,15 +99,18 @@ class ImportPqFileLfs:
 
     def __do_import_regular_file(self):
         lfs_dest_filepath = self.__destination_info['full_source_name']
-        print(f'Destination file path: {lfs_dest_filepath}')
+        print(f'Фвйл на локальной ФС: {lfs_dest_filepath}')
         pqw = None
         import_is_ok = False
         records = Records(sql=self.__sql, job_queue_runpack_id=self.__job_queue_runpack_id)
+        ips = ImportPqSchema()
         print(f'Старт считывания данных...')
-        try:    
+        try:
             for i, r in enumerate(records, 1):
-                self.__pqschema.append_record_to_list(r)
-            t = self.__pqschema.make_table()
+                if i==1:
+                    ips.init_columns(r)
+                ips.append_record_to_list(r)
+            t = ips.make_table()
             pqw = pq.ParquetWriter(lfs_dest_filepath, t.schema)
             pqw.write_table(t)
             print(f'Импортировано {i} записей')

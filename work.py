@@ -17,7 +17,7 @@ def work(setup_table_id: int,
         delete_local_file=False, 
         import_as=ImportAs.file,
         direct_to_s3=False,
-        where_str=None,
+        #where_str=None,
         partition_field=None,
         dwh_server=None
     ):
@@ -44,7 +44,8 @@ def work(setup_table_id: int,
 
     dst = do_import(
         jid=job_id, sid=setup_table_id, import_as=import_as, direct_to_s3=direct_to_s3,
-        where_str=where_str, partition_field=partition_field
+        #where_str=where_str, 
+        partition_field=partition_field
         )
     
 # ---------------------------------------------------------------------------------------

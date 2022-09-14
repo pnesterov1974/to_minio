@@ -17,10 +17,9 @@ class ImportPqFileS3:
     minio_dwh_bucket = DWH_BUCKET
     batch_record_count = None
 
-    def __init__(self, setup: SetupSource, lfs: LFS, pqschema: ImportPqSchema, big_file=False):
+    def __init__(self, setup: SetupSource, lfs: LFS, big_file=False):
         self.__sql = setup.source_sql
         self.__job_queue_runpack_id = setup.job_queue_runpack_id
-        self.__pqschema = pqschema
         self.__destination_info = lfs.lfs_info
         self.__big_file = big_file
 
@@ -39,12 +38,14 @@ class ImportPqFileS3:
             scheme="http",
             )
 
-        #records = Records(self.__sql)
         records = Records(sql=self.__sql, job_queue_runpack_id=self.__job_queue_runpack_id)
+        ips = ImportPqSchema()
         print(f'Старт считывания данных...')
         try:
             for i, r in enumerate(records, 1):
-                self.__pqschema.append_record_to_list(r)
+                if i==1:
+                    ips.init_columns(r)
+                ips.append_record_to_list(r)
             t = self.__pqschema.make_table()
             pqw = pq.ParquetWriter(
                 dest_file, t.schema,
@@ -81,13 +82,16 @@ class ImportPqFileS3:
             scheme="http",
             )
 
-        records = Records(self.__sql)
+        records = Records(sql=self.__sql, job_queue_runpack_id=self.__job_queue_runpack_id)
+        ips = ImportPqSchema()
         print(f'Старт считывания данных...')
         current_batch = 1
         try:
             for i, r in enumerate(records, 1):
+                if i==1:
+                    ips.init_columns(r)
                 if (i % ImportPqFileS3.batch_record_count) == 0:
-                    t = self.__pqschema.make_table()
+                    t = ips.make_table()
                     if current_batch==1:
                         pqw = pq.ParquetWriter(
                             dest_file, t.schema,
@@ -96,18 +100,18 @@ class ImportPqFileS3:
                     pqw.write_table(t)
                     print(f'пачка {current_batch}, записей {i}')
                     current_batch += 1
-                    self.__pqschema.clear_lists()
-                self.__pqschema.append_record_to_list(r)
+                    ips.clear_lists()
+                ips.append_record_to_list(r)
             
-            if not self.__pqschema.schema_is_clean():
-                t = self.__pqschema.make_table()
+            if not ips.schema_is_clean():
+                t = ips.make_table()
                 if current_batch==1:
                     pqw = pq.ParquetWriter(
                         dest_file, t.schema,
                         filesystem=fs3,
                     )
                 pqw.write_table(t)
-                self.__pqschema.clear_lists()
+                ips.clear_lists()
                 print(f'пачка {current_batch}, записей {i}')
                 import_is_ok = True
         except Exception as Ex:

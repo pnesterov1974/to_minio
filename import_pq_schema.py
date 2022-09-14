@@ -1,3 +1,4 @@
+from decimal import Decimal
 from uuid import UUID
 
 import pyarrow as pa
@@ -6,29 +7,28 @@ from setup_source import SetupSource
 class ImportPqSchema:
     snapshot_dt = None
 
-    def __init__(self, setup_source: SetupSource):
+    def __init__(self):
         self.__arr_table = None
-        self.__columns = setup_source.columns_info
+        self.__import_schema = {}
 
-        d = {}
-
-        for k, v in self.__columns.items():
-            d[k] = {
-                'type': v['src_column_type'],
+    def init_columns(self, rec):
+        for k, v in rec.items():
+            self.__import_schema[k] = {
+                #'type': type(v),
                 'lst': [],
                 'arr': None
             }
-        d['RunPackID'] = {
-            'type': 'int',
+        self.__import_schema['RunPackID'] = {
+            #'type': 'int',
             'lst': [],
             'arr': None
         }
-        d['SnapshotDT'] = {
-            'type': 'varchar',
+        self.__import_schema['SnapshotDT'] = {
+            #'type': 'varchar',
             'lst': [],
             'arr': None
         }
-        self.__import_schema = d
+        #self.__import_schema = d
 
     def clear_lists(self):
         if self.__import_schema:
@@ -50,11 +50,6 @@ class ImportPqSchema:
         # добавление конкретного value в список v['lst']
         # то, в какой список добавляеть, ищется в структуре по ключу - "имя поля"
         _v = self.__adjust_field_value(value)
-        
-        #if field_name=='Sell Comment':
-        #    print(f'Sell Comment {_v}')
-        #_v = value
-        
         if self.__import_schema:
             self.__import_schema[field_name]['lst'].append(_v)
 
@@ -70,33 +65,26 @@ class ImportPqSchema:
 
     def __make_array(self, field_name: str):
         # все запсии добавили - для переданного имени поля создаем pa.array
-        if self.__import_schema:
-            l = self.__import_schema[field_name]['lst']
-            tp = self.__import_schema[field_name]['type']
-            tpc = type(l[0])
-            #tpc = '-'
-            print(f'field_name: {field_name} .. type:{tp} .. real python type:{tpc}')
-
-            if tp in ('int', 'tinyint', 'bit', 'bigint'):
-                tpp = pa.int32()
-            #TODO: bigint => int64 ??
-            elif tp=='decimal':
-                tpp = pa.decimal128(38, 20)
-            elif tp=='datetime':
-                tpp = pa.date64()
-            elif tp=='varchar':
-                tpp = pa.string()
-            elif tp=='uniqueidentifier':
-                tpp = pa.string()
-            elif tp=='timestamp':
-                tpp = pa.binary() 
-            else:
-                # Неизвестный тип
-                print(f'Неизвестный тип данных: tp={tp}, pytp={type(l[0])}')
-                raise
-
-            if tpp:
-                self.__import_schema[field_name]['arr'] = pa.array(l, type=tpp)
+        tpp = None
+        _data = self.__import_schema[field_name]['lst']
+        for v in _data:
+            if v != None:
+                if isinstance(v, str):
+                    tpp = pa.string()
+                    break
+                elif isinstance(v, int):
+                    tpp = pa.int32()
+                    break
+                elif isinstance(v, Decimal):
+                    tpp = tpp = pa.decimal128(38, 20)
+                    break
+                else:
+                    # Неизвестный тип
+                    print(f'Неизвестный тип данных: tp={type(v)}, v={v}')
+                    raise ValueError
+        print(f'field_name: {field_name} .. pyarrow type:{tpp} .. real python type:{type(v)}')
+        if tpp:
+            self.__import_schema[field_name]['arr'] = pa.array(_data, type=tpp)
         else:
             raise ValueError(
                     f'схема данных не инициализирована'
@@ -105,14 +93,10 @@ class ImportPqSchema:
     def __make_arrays(self):
         # создание pa.array для всех полей
         print('==== Внутренние поля =')
-        if self.__import_schema:
-            for k in self.__import_schema:
+        for k in self.__import_schema:
+            if len(self.__import_schema[k]['lst']) > 0: # Если есть значения для поля с именем k
                 self.__make_array(k)
-            print('\n')
-        else:
-            raise ValueError(
-                    f'схема данных не инициализирована'
-                )
+        print('\n')
 
     def make_table(self):
         #  по созданным pa.array-ам создаем pyarrow.table

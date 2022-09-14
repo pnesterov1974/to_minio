@@ -4,15 +4,13 @@ from work import work
 from shared import ImportAs
 from settings import DEFAULT_BATCH_RECORD_COUNT, MINIMUM_BATCH_RECORD_COUNT
 
+# Работало перед замены view на sp
 
 #уйти от [] в именах
 #то поле, которое будет в partitionFields - в маппинге без пробелов и симоволов %№;...
 #добавить 3 поля в выходнрй набов
-#   PackID из JobQueue
-#   SnapshotDate из имени файла
 # lfs - создание через stream file system
-# импорт-фунуторы возвращают количество записей
-
+# импорт-функторы возвращают количество записей
 
 # обработка варианта когда из источника не возвращена ни одна запись
 # print sql make nice
@@ -57,10 +55,6 @@ def main():
         choices=['local', 'S3'], default='S3'
     )
     parser.add_argument(
-        '-wh', '--where', dest="where", required=False, type=str, 
-        default=None
-    )
-    parser.add_argument(
         '-pf', '--partition_field', dest="partition_field", required=False, type=str, 
         default=None
     )
@@ -76,7 +70,6 @@ def main():
     print(f'{args.delete_local_file=}')
     print(f'{args.import_as=}')
     print(f'{args.target=}')
-    print(f'{args.where=}')
     print(f'{args.partition_field=}')
     print(f'{args.dwh_server=}')
     print('\n')
@@ -102,7 +95,6 @@ def main():
          import_as=import_as_choise,
          job_id=args.job_id,
          direct_to_s3=direct_to_s3,
-         where_str = args.where,
          partition_field=args.partition_field,
          dwh_server=args.dwh_server
         )
