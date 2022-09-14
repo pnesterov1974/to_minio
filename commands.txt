@@ -1,0 +1,36 @@
+
+C:\py_pq\Dev\to_minio>
+
+python cc.py -jid 18448822 -as folder -tg S3 -wh "WHERE 10=10" -pf "[Posting Date]"       -- ILE
+
+python cc.py -jid 18448821 -as folder -tg S3 -wh "WHERE 10=10" -pf "[Posting Date]"       -- GLE
+
+python cc.py -sid 11923 -as folder -tg local -wh "WHERE [Blocked]=0" -pf "[Account Type]"    -- GLA
+
+python cc.py -sid 11924 -as file -tg local                                                -- Production BOM Line
+
+
+
+#/--- Item Ledger Entry
+python cc.py -jid 18448822 -as folder -tg S3 -wh "10=10" -pf "Posting Date" -ds DWH
+
+#/--- G_L Entry
+python cc.py -jid 18448821 -as folder -tg S3 -wh "10=10" -pf "Posting Date" -ds DWH
+
+#/--- Sales Header Ext Posted   jid 18669755
+python cc.py -sid 11927 -as folder -tg S3 -wh "[Table No]=112" -pf "Promo No_"
+
+/--- Post Code  jid 18619576
+python cc.py -sid 11930 -as folder -tg S3 -wh "[Region Code]=25" -pf "City"
+
+/--- Customer  jid 18619577
+python cc.py -sid 11928 -as folder -tg S3 -wh "[Reserve]=1" -pf "Regional Group Code"
+python cc.py -jid 18619577 -as folder -tg S3 -wh "[Reserve]=1" -pf "Regional Group Code"
+
+/--- Sales Invoice Header -jid 18619578
+python cc.py -sid 11926 -as folder -tg S3 -wh "[Bill-to Country Code]='RU'" -pf "Customer Posting Group"
+python cc.py -jid 18619578 -as folder -tg S3 -wh "10=10"
+
+/--- Sales Invoice Line  -jid 18619579
+python cc.py -sid 11925 -as folder -tg S3 -wh "[Posting Group]=1" -pf "Logistic Object Code"
+python cc.py -jid 18619579 -as folder -tg S3 -wh "[Posting Group]=1" -pf "Logistic Object Code"
